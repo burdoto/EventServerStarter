@@ -9,11 +9,15 @@ repositories {
 
 dependencies {
     implementation project(':japi')
-    implementation 'net.dv8tion:JDA:5.+'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.+'
+    implementation 'net.dv8tion:JDA:+'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:+'
 
-    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation platform('org.junit:junit-bom:+')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // lombok
+    implementation 'org.projectlombok:lombok:+'
+    annotationProcessor 'org.projectlombok:lombok:+'
 }
 
 test {

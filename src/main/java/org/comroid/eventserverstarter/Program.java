@@ -22,13 +22,14 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class Program extends Component.Base {
     public static final Pattern EVENT_URL = Pattern.compile("event=(\\d+)");
 
     public static void main(String[] args) {
-        var exec = new Program();
+        try (var exec = new Program()) {
+            exec.start();
+        }
     }
 
     private final Map<Long, EventDetail>  eventServices = new ConcurrentHashMap<>();
@@ -62,8 +63,10 @@ public class Program extends Component.Base {
     }
 
     @Override
-    public Stream<Object> streamOwnChildren() {
-        return Stream.of(bus, jda, cmdr);
+    protected void $terminate() {
+        jda.shutdownNow();
+        bus.close();
+        cmdr.close();
     }
 
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
