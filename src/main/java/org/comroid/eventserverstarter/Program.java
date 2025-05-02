@@ -265,9 +265,9 @@ public class Program extends Component.Base {
                     .map(entry -> new EventDetail(entry.get("event").longValue(), entry.get("channel").longValue(), entry.get("service").textValue()))
                     .forEach(detail -> eventServices.put(detail.event, detail));
         } catch (Throwable t) {
-            Log.at(Level.SEVERE, "Failed to load events; deleting file", t);
+            Log.at(Level.SEVERE, "Failed to load events; renaming file", t);
             //noinspection ResultOfMethodCallIgnored
-            DETAILS_CACHE.delete();
+            DETAILS_CACHE.renameTo(new File("events.json.bak").getAbsoluteFile());
         }
     }
 
@@ -279,9 +279,9 @@ public class Program extends Component.Base {
             eventServices.forEach((event, detail) -> obj.put("event", event).put("channel", detail.channelId).put("service", detail.service));
             MAPPER.writeValue(write, obj);
         } catch (Throwable t) {
-            Log.at(Level.SEVERE, "Failed to save events; deleting file", t);
+            Log.at(Level.SEVERE, "Failed to save events; renaming file", t);
             //noinspection ResultOfMethodCallIgnored
-            DETAILS_CACHE.delete();
+            DETAILS_CACHE.renameTo(new File("commons.json.bak").getAbsoluteFile());
         }
     }
 
