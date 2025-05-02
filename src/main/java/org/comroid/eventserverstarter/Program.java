@@ -100,6 +100,12 @@ public class Program extends Component.Base {
         }};
     }
 
+    @Command(permission = "8")
+    public String shutdown() {
+        System.exit(0);
+        return "Goodbye";
+    }
+
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
     @Description("Link a discord event with a systemd service")
     public String link(
