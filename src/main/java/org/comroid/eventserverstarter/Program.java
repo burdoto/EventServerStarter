@@ -3,28 +3,28 @@ package org.comroid.eventserverstarter;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.ScheduledEvent;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.GenericEvent;
 import net.dv8tion.jda.api.events.guild.scheduledevent.update.ScheduledEventUpdateStatusEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import org.comroid.annotations.Description;
 import org.comroid.api.func.util.Command;
 import org.comroid.api.func.util.Event;
 import org.comroid.api.info.Log;
 import org.comroid.api.io.FileHandle;
-import org.comroid.api.java.StackTraceUtils;
 import org.comroid.api.tree.Component;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
 public class Program extends Component.Base {
-    public static final Pattern EVENT_URL = Pattern.compile("event=(\\d+)");
+    public static final Pattern SNOWFLAKE = Pattern.compile("(\\d+)");
 
     public static void main(String[] args) {
         try (var exec = new Program()) {
@@ -60,6 +60,7 @@ public class Program extends Component.Base {
     @SneakyThrows
     protected void $lateInitialize() {
         jda.awaitReady();
+        cmdr.initialize();
     }
 
     @Override
@@ -70,22 +71,24 @@ public class Program extends Component.Base {
     }
 
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
-    public String setEvent(Message message, @Command.Arg String service) {
-        long eventId;
-        try {
-            var refContent = Objects.requireNonNull(message.getReferencedMessage()).getContentRaw();
-            var matcher    = EVENT_URL.matcher(refContent);
-            if (!matcher.find()) throw new NullPointerException("Could not parse event ID from referenced message");
+    @Description("Link a discord event with a systemd service")
+    public String link(
+            @Command.Arg("event") @Description("The URL or any other string that contains the ID of a scheduled event") String eventHint,
+            @Command.Arg("service") @Description("The systemd unit name to use") String service, TextChannel channel
+    ) {
+        long eventId = 0;
+        ScheduledEvent event = null;
+        var  matcher = SNOWFLAKE.matcher(eventHint);
+
+        while (matcher.find()) {
             eventId = Long.parseLong(matcher.group(1));
-        } catch (NullPointerException npe) {
-            return "Cannot find referenced event: " + StackTraceUtils.toString(npe);
+            event   = jda.getScheduledEventById(eventId);
+            if (event != null) break;
         }
+        if (event == null) throw new Command.Error("Cannot find scheduled event with ID " + eventId);
 
-        var event = jda.getScheduledEventById(eventId);
-        if (event == null) return "Cannot find event with ID " + eventId;
-
-        eventServices.put(eventId, new EventDetail(service, message.getChannelIdLong()));
-        return "Successfully linked event '%s' with service '%s'".formatted(event.getName(), service);
+        eventServices.put(eventId, new EventDetail(service, channel.getIdLong()));
+        return "Successfully linked scheduled event '%s' with service '%s'".formatted(event.getName(), service);
     }
 
     @Event.Subscriber
