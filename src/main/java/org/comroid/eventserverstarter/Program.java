@@ -71,6 +71,7 @@ public class Program extends Component.Base {
         bus.close();
         cmdr.close();
 
+        //noinspection ResultOfMethodCallIgnored
         EVENTS_FILE.getParentFile().mkdirs();
         try (var write = new FileWriter(EVENTS_FILE)) {
             MAPPER.writeValue(write, eventServices.values());
@@ -80,7 +81,7 @@ public class Program extends Component.Base {
             EVENTS_FILE.delete();
         }
 
-        Log.at(Level.INFO, "Stopped!");
+        Log.at(Level.INFO, "Stopped! Config at " + EVENTS_FILE.getAbsolutePath());
     }
 
     @Override
