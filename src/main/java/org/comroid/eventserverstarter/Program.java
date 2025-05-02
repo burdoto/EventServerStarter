@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.ScheduledEvent;
 import net.dv8tion.jda.api.entities.channel.Channel;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.GenericEvent;
 import net.dv8tion.jda.api.events.guild.scheduledevent.update.ScheduledEventUpdateStatusEvent;
@@ -290,7 +291,7 @@ public class Program extends Component.Base {
             var data = MAPPER.readTree(COMMON_SERVICES);
             data.forEachEntry((key, value) -> {
                 var id      = Long.parseLong(key);
-                var channel = jda.getTextChannelById(id);
+                var channel = jda.getChannelById(MessageChannel.class, id);
                 if (channel == null) return;
                 commonServices.put(id, value.textValue());
             });
