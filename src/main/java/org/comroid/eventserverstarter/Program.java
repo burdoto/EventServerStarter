@@ -1,5 +1,6 @@
 package org.comroid.eventserverstarter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -25,7 +26,10 @@ import java.util.logging.Level;
 import java.util.regex.Pattern;
 
 public class Program extends Component.Base {
-    public static final Pattern SNOWFLAKE = Pattern.compile("(\\d+)");
+    public static final FileHandle   TOKEN_FILE  = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt");
+    public static final FileHandle   EVENTS_FILE = new FileHandle("event.json");
+    public static final Pattern      SNOWFLAKE   = Pattern.compile("(\\d+)");
+    public static final ObjectMapper MAPPER      = new ObjectMapper();
 
     public static void main(String[] args) {
         try (var exec = new Program()) {
@@ -41,9 +45,22 @@ public class Program extends Component.Base {
     @Override
     @SneakyThrows
     protected void $lateInitialize() {
+        if (EVENTS_FILE.exists()) try {
+            var data = MAPPER.readTree(EVENTS_FILE);
+            data.valueStream()
+                    .map(entry -> new EventDetail(entry.get("event").longValue(), entry.get("channel").longValue(), entry.get("service").textValue()))
+                    .forEach(detail -> eventServices.put(detail.event, detail));
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to load events; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            EVENTS_FILE.delete();
+        }
+
         jda.awaitReady();
         cmdr.initialize();
         bus.start();
+
+        Log.at(Level.INFO, "Started!");
     }
 
     @Override
@@ -51,11 +68,21 @@ public class Program extends Component.Base {
         jda.shutdownNow();
         bus.close();
         cmdr.close();
+
+        try (var write = EVENTS_FILE.openWriter()) {
+            MAPPER.writeValue(write, eventServices.values());
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to save events; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            EVENTS_FILE.delete();
+        }
+
+        Log.at(Level.INFO, "Stopped!");
     }
 
     @Override
     protected void $initialize() {
-        var token = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt").getContent();
+        var token = TOKEN_FILE.getContent();
 
         this.bus  = new Event.Bus<>() {{
             register(Program.this);
@@ -92,7 +119,7 @@ public class Program extends Component.Base {
         }
         if (event == null) throw new Command.Error("Cannot find scheduled event with ID " + eventId);
 
-        eventServices.put(eventId, new EventDetail(service, channel.getIdLong()));
+        eventServices.put(eventId, new EventDetail(eventId, channel.getIdLong(), service));
         return "Successfully linked scheduled event '%s' with service '%s'".formatted(event.getName(), service);
     }
 
@@ -144,5 +171,5 @@ public class Program extends Component.Base {
         }
     }
 
-    record EventDetail(String service, long channelId) {}
+    record EventDetail(long event, long channelId, String service) {}
 }
