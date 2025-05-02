@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Program extends Component.Base {
     public static final FileHandle   TOKEN_FILE      = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt");
@@ -101,6 +102,7 @@ public class Program extends Component.Base {
 
     @Command(permission = "8")
     public String save() {
+        Log.at(Level.INFO, "Saved by Command");
         saveDetailsCache();
         saveCommonServices();
         return "Saved!";
@@ -108,6 +110,7 @@ public class Program extends Component.Base {
 
     @Command(value = "reload", permission = "8")
     public String $reload() {
+        Log.at(Level.INFO, "Reload by Command");
         commonServices.clear();
         eventServices.clear();
         loadCommonServices();
@@ -117,9 +120,21 @@ public class Program extends Component.Base {
 
     @Command(permission = "8")
     public String shutdown() {
+        Log.at(Level.INFO, "Shutdown by Command");
         terminate();
         System.exit(0);
         return "Goodbye";
+    }
+
+    @Command(permission = "8589934592") // perm: MANAGE_EVENTS
+    public String dump() {
+        return "# Current Links\n" + eventServices.values()
+                .stream()
+                .map(Record::toString)
+                .collect(Collectors.joining("\n- ", "- ", "")) + "\n# Common Services\n" + commonServices.entrySet()
+                       .stream()
+                       .map(Object::toString)
+                       .collect(Collectors.joining("\n- ", "- ", ""));
     }
 
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
