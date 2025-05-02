@@ -4,7 +4,7 @@ import lombok.SneakyThrows;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.ScheduledEvent;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.Channel;
 import net.dv8tion.jda.api.events.GenericEvent;
 import net.dv8tion.jda.api.events.guild.scheduledevent.update.ScheduledEventUpdateStatusEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -76,7 +76,7 @@ public class Program extends Component.Base {
     @Description("Link a discord event with a systemd service")
     public String link(
             @Command.Arg("event") @Description("The URL or any other string that contains the ID of a scheduled event") String eventHint,
-            @Command.Arg("service") @Description("The systemd unit name to use") String service, TextChannel channel
+            @Command.Arg("service") @Description("The systemd unit name to use") String service, Channel channel
     ) {
         long           eventId = 0;
         ScheduledEvent event   = null;
@@ -115,7 +115,7 @@ public class Program extends Component.Base {
             Log.at(Level.WARNING, "Could not send response for " + detail);
             return;
         }
-        channel.asTextChannel()
+        channel.asVoiceChannel()
                 .sendMessage("Event '%s' and affiliated service '%s' were *%s*".formatted(event.getScheduledEvent().getName(), detail.service, verb))
                 .queue();
     }
