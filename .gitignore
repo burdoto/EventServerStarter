@@ -1,3 +1,6 @@
 .idea/
 .gradle/
 build/
+
+commons.json
+events.json

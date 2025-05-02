@@ -6,7 +6,6 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.ScheduledEvent;
 import net.dv8tion.jda.api.entities.channel.Channel;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.GenericEvent;
 import net.dv8tion.jda.api.events.guild.scheduledevent.update.ScheduledEventUpdateStatusEvent;
@@ -58,10 +57,11 @@ public class Program extends Component.Base {
     @Override
     @SneakyThrows
     protected void $lateInitialize() {
+        jda.awaitReady();
+
         loadDetailsCache();
         loadCommonServices();
 
-        jda.awaitReady();
         cmdr.initialize();
         bus.start();
 
@@ -131,7 +131,7 @@ public class Program extends Component.Base {
         return "# Current Links\n" + eventServices.values()
                 .stream()
                 .map(Record::toString)
-                .collect(Collectors.joining("\n- ", "- ", "")) + "\n# Common Services\n" + commonServices.entrySet()
+                .collect(Collectors.joining("\n- ", "- ", "")) + "\n\n# Common Services\n" + commonServices.entrySet()
                        .stream()
                        .map(Object::toString)
                        .collect(Collectors.joining("\n- ", "- ", ""));
@@ -165,7 +165,7 @@ public class Program extends Component.Base {
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
     @Description("Define commonly used services to automate event linkage when an event URL is posted")
     public String common(
-            @Command.Arg("channel") @Description("The channel to look for event URLs") TextChannel channel,
+            Channel channel,
             @Command.Arg("service") @Description("The service to affiliate with the channel") String service
     ) {
         Log.at(Level.INFO, "Handling /common command; channel=%s, service=%s".formatted(channel, service));
@@ -184,6 +184,7 @@ public class Program extends Component.Base {
 
     @Event.Subscriber
     public void onMessageReactionAdd(MessageReactionAddEvent event) {
+        if (event.retrieveUser().submit().join().isBot()) return;
         if (!event.getEmoji().equals(EMOJI_QUESTION)) return;
         Log.at(Level.INFO, "Handling reaction add: " + event);
 
@@ -199,7 +200,7 @@ public class Program extends Component.Base {
 
         event.getChannel()
                 .sendMessage(("Event '%s' linked to service " + "`%s`").formatted(scheduled.getName(), service))
-                .flatMap($ -> message.removeReaction(EMOJI_QUESTION))
+                .flatMap($ -> message.clearReactions(EMOJI_QUESTION))
                 .flatMap($ -> message.addReaction(EMOJI_OK))
                 .queue();
     }
