@@ -165,10 +165,7 @@ public class Program extends Component.Base {
 
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
     @Description("Define commonly used services to automate event linkage when an event URL is posted")
-    public String common(
-            Channel channel,
-            @Command.Arg("service") @Description("The service to affiliate with the channel") String service
-    ) {
+    public String common(Channel channel, @Command.Arg("service") @Description("The service to affiliate with the channel") String service) {
         Log.at(Level.INFO, "Handling /common command; channel=%s, service=%s".formatted(channel, service));
         commonServices.put(channel.getIdLong(), service);
         saveCommonServices();
@@ -276,9 +273,13 @@ public class Program extends Component.Base {
         //noinspection ResultOfMethodCallIgnored
         DETAILS_CACHE.getParentFile().mkdirs();
         try (var write = new FileWriter(DETAILS_CACHE)) {
-            var obj = MAPPER.createObjectNode();
-            eventServices.forEach((event, detail) -> obj.put("event", event).put("channel", detail.channelId).put("service", detail.service));
-            MAPPER.writeValue(write, obj);
+            var arr = MAPPER.createArrayNode();
+            var obj = arr.addObject();
+            eventServices.values().stream().filter(detail -> {
+                var event = jda.getScheduledEventById(detail.event);
+                return event != null && event.getStatus() != ScheduledEvent.Status.COMPLETED;
+            }).forEach(detail -> obj.put("event", detail.event).put("channel", detail.channelId).put("service", detail.service));
+            MAPPER.writeValue(write, arr);
         } catch (Throwable t) {
             Log.at(Level.SEVERE, "Failed to save events; renaming file", t);
             //noinspection ResultOfMethodCallIgnored

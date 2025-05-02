@@ -2,5 +2,5 @@
 .gradle/
 build/
 
-commons.json
-events.json
+*.json
+*.bak
