@@ -150,9 +150,10 @@ public class Program extends Component.Base {
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
     @Description("Define commonly used services to automate event linkage when an event URL is posted")
     public String common(
-            @Command.Arg @Description("The channel to look for event URLs") TextChannel channel,
-            @Command.Arg @Description("The service to affiliate with the channel") String service
+            @Command.Arg("channel") @Description("The channel to look for event URLs") TextChannel channel,
+            @Command.Arg("service") @Description("The service to affiliate with the channel") String service
     ) {
+        Log.at(Level.INFO, "Handling /common command; channel=%s, service=%s".formatted(channel, service));
         commonServices.put(channel.getIdLong(), service);
         saveCommonServices();
         return "Set `%s` as default service for events in %s".formatted(service, channel.getAsMention());
@@ -161,6 +162,7 @@ public class Program extends Component.Base {
     @Event.Subscriber
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!commonServices.containsKey(event.getChannel().getIdLong())) return;
+        Log.at(Level.INFO, "Handling common channel message received: " + event);
         if (extractScheduledEvent(event.getMessage().getContentRaw()) == null) return;
         event.getMessage().addReaction(EMOJI_QUESTION).queue();
     }
@@ -168,6 +170,7 @@ public class Program extends Component.Base {
     @Event.Subscriber
     public void onMessageReactionAdd(MessageReactionAddEvent event) {
         if (!event.getEmoji().equals(EMOJI_QUESTION)) return;
+        Log.at(Level.INFO, "Handling reaction add: " + event);
 
         var service = commonServices.getOrDefault(event.getChannel().getIdLong(), null);
         if (service == null) return;
