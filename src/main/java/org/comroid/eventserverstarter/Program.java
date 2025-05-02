@@ -102,6 +102,7 @@ public class Program extends Component.Base {
     }
 
     @Command(permission = "8")
+    @Description("Save configuration to disk")
     public String save() {
         Log.at(Level.INFO, "Saved by Command");
         saveDetailsCache();
@@ -110,6 +111,7 @@ public class Program extends Component.Base {
     }
 
     @Command(value = "reload", permission = "8")
+    @Description("Reload configuration from disk")
     public String $reload() {
         Log.at(Level.INFO, "Reload by Command");
         commonServices.clear();
@@ -120,6 +122,7 @@ public class Program extends Component.Base {
     }
 
     @Command(permission = "8")
+    @Description("Shutdown the Bot")
     public String shutdown() {
         Log.at(Level.INFO, "Shutdown by Command");
         terminate();
@@ -128,6 +131,7 @@ public class Program extends Component.Base {
     }
 
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
+    @Description("Dumps services and commons")
     public String dump() {
         return "# Current Links\n" + eventServices.values()
                 .stream()
