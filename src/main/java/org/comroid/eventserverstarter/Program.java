@@ -20,6 +20,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
@@ -78,6 +79,8 @@ public class Program extends Component.Base {
             @Command.Arg("event") @Description("The URL or any other string that contains the ID of a scheduled event") String eventHint,
             @Command.Arg("service") @Description("The systemd unit name to use") String service, Channel channel
     ) {
+        Log.at(Level.INFO, "Handling /link command; event=%s, service=%s".formatted(eventHint, service));
+
         long           eventId = 0;
         ScheduledEvent event   = null;
         var            matcher = SNOWFLAKE.matcher(eventHint);
@@ -95,6 +98,8 @@ public class Program extends Component.Base {
 
     @Event.Subscriber
     public void onScheduledEventUpdateStatus(ScheduledEventUpdateStatusEvent event) {
+        Log.at(Level.INFO, "Handling event status update: " + event);
+
         var detail = eventServices.getOrDefault(event.getScheduledEvent().getIdLong(), null);
         if (detail == null) return;
 
@@ -130,7 +135,13 @@ public class Program extends Component.Base {
 
     @SneakyThrows
     private void bashExec(@Language("bash") String command) {
-        Runtime.getRuntime().exec(command.split(" "));
+        Log.at(Level.INFO, "Executing bash command: " + command);
+
+        try {
+            Runtime.getRuntime().exec(command.split(" ")).waitFor(1, TimeUnit.MINUTES);
+        } catch (InterruptedException timeout) {
+            Log.at(Level.WARNING, "bashExec() timed out", timeout);
+        }
     }
 
     record EventDetail(String service, long channelId) {}
