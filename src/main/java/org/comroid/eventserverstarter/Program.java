@@ -121,11 +121,11 @@ public class Program extends Component.Base {
     }
 
     private void startService(String name) {
-        bashExec("sudo systemctl start " + name);
+        bashExec("sudo -n systemctl start " + name);
     }
 
     private void stopService(String name) {
-        bashExec("sudo systemctl stop " + name);
+        bashExec("sudo -n systemctl stop " + name);
     }
 
     @SneakyThrows
