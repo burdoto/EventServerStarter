@@ -19,6 +19,8 @@ import org.comroid.api.tree.Component;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +29,7 @@ import java.util.regex.Pattern;
 
 public class Program extends Component.Base {
     public static final FileHandle   TOKEN_FILE  = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt");
-    public static final FileHandle   EVENTS_FILE = new FileHandle("event.json");
+    public static final File         EVENTS_FILE = new FileHandle("event.json").getAbsoluteFile();
     public static final Pattern      SNOWFLAKE   = Pattern.compile("(\\d+)");
     public static final ObjectMapper MAPPER      = new ObjectMapper();
 
@@ -69,7 +71,8 @@ public class Program extends Component.Base {
         bus.close();
         cmdr.close();
 
-        try (var write = EVENTS_FILE.openWriter()) {
+        EVENTS_FILE.getParentFile().mkdirs();
+        try (var write = new FileWriter(EVENTS_FILE)) {
             MAPPER.writeValue(write, eventServices.values());
         } catch (Throwable t) {
             Log.at(Level.SEVERE, "Failed to save events; deleting file", t);
