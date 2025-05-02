@@ -38,29 +38,11 @@ public class Program extends Component.Base {
     private       Command.Manager         cmdr;
 
     @Override
-    protected void $initialize() {
-        var token = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt").getContent();
-
-        this.bus  = new Event.Bus<>() {{
-            register(Program.this);
-        }};
-        this.jda  = JDABuilder.createDefault(token, GatewayIntent.getIntents(GatewayIntent.ALL_INTENTS)).addEventListeners(new ListenerAdapter() {
-            @Override
-            public void onGenericEvent(@NotNull GenericEvent event) {
-                bus.accept(event);
-            }
-        }).build();
-        this.cmdr = new Command.Manager() {{
-            new Adapter$JDA(jda);
-            register(Program.this);
-        }};
-    }
-
-    @Override
     @SneakyThrows
     protected void $lateInitialize() {
         jda.awaitReady();
         cmdr.initialize();
+        bus.start();
     }
 
     @Override
@@ -70,15 +52,35 @@ public class Program extends Component.Base {
         cmdr.close();
     }
 
+    @Override
+    protected void $initialize() {
+        var token = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt").getContent();
+
+        this.bus  = new Event.Bus<>() {{
+            register(Program.this);
+        }};
+        this.jda  = JDABuilder.createDefault(token, GatewayIntent.getIntents(GatewayIntent.ALL_INTENTS)).addEventListeners(new ListenerAdapter() {
+            @Override
+            public void onGenericEvent(@NotNull GenericEvent event) {
+                var simpleName = event.getClass().getSimpleName();
+                bus.accept(event, "on" + simpleName.substring(0, simpleName.length() - 5));
+            }
+        }).build();
+        this.cmdr = new Command.Manager() {{
+            new Adapter$JDA(jda);
+            register(Program.this);
+        }};
+    }
+
     @Command(permission = "8589934592") // perm: MANAGE_EVENTS
     @Description("Link a discord event with a systemd service")
     public String link(
             @Command.Arg("event") @Description("The URL or any other string that contains the ID of a scheduled event") String eventHint,
             @Command.Arg("service") @Description("The systemd unit name to use") String service, TextChannel channel
     ) {
-        long eventId = 0;
-        ScheduledEvent event = null;
-        var  matcher = SNOWFLAKE.matcher(eventHint);
+        long           eventId = 0;
+        ScheduledEvent event   = null;
+        var            matcher = SNOWFLAKE.matcher(eventHint);
 
         while (matcher.find()) {
             eventId = Long.parseLong(matcher.group(1));
