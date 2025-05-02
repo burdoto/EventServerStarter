@@ -2,6 +2,7 @@ apply plugin: 'application'
 
 group = 'org.comroid'
 version = '1'
+mainClassName = 'org.comroid.eventserverstarter.Program'
 
 repositories {
     mavenCentral()
