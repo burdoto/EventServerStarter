@@ -6,8 +6,12 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.ScheduledEvent;
 import net.dv8tion.jda.api.entities.channel.Channel;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.GenericEvent;
 import net.dv8tion.jda.api.events.guild.scheduledevent.update.ScheduledEventUpdateStatusEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.comroid.annotations.Description;
@@ -18,6 +22,7 @@ import org.comroid.api.io.FileHandle;
 import org.comroid.api.tree.Component;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -28,10 +33,14 @@ import java.util.logging.Level;
 import java.util.regex.Pattern;
 
 public class Program extends Component.Base {
-    public static final FileHandle   TOKEN_FILE  = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt");
-    public static final File         EVENTS_FILE = new FileHandle("event.json").getAbsoluteFile();
-    public static final Pattern      SNOWFLAKE   = Pattern.compile("(\\d+)");
-    public static final ObjectMapper MAPPER      = new ObjectMapper();
+    public static final FileHandle   TOKEN_FILE      = new FileHandle("/srv/discord/jumpy/terraria_event_bot.txt");
+    public static final File         DETAILS_CACHE   = new FileHandle("events.json").getAbsoluteFile();
+    public static final File         COMMON_SERVICES = new FileHandle("commons.json").getAbsoluteFile();
+    public static final Pattern      SNOWFLAKE       = Pattern.compile("(\\d+)");
+    public static final Pattern      EVENT_URL_ARG   = Pattern.compile("discord\\.gg/.+event=(\\d+)");
+    public static final Emoji        EMOJI_OK        = Emoji.fromUnicode("✅");
+    public static final Emoji        EMOJI_QUESTION  = Emoji.fromUnicode("❔");
+    public static final ObjectMapper MAPPER          = new ObjectMapper();
 
     public static void main(String[] args) {
         try (var exec = new Program()) {
@@ -39,7 +48,8 @@ public class Program extends Component.Base {
         }
     }
 
-    private final Map<Long, EventDetail>  eventServices = new ConcurrentHashMap<>();
+    private final Map<Long, EventDetail>  eventServices  = new ConcurrentHashMap<>();
+    private final Map<Long, String>       commonServices = new ConcurrentHashMap<>();
     private       Event.Bus<GenericEvent> bus;
     private       JDA                     jda;
     private       Command.Manager         cmdr;
@@ -47,16 +57,8 @@ public class Program extends Component.Base {
     @Override
     @SneakyThrows
     protected void $lateInitialize() {
-        if (EVENTS_FILE.exists()) try {
-            var data = MAPPER.readTree(EVENTS_FILE);
-            data.valueStream()
-                    .map(entry -> new EventDetail(entry.get("event").longValue(), entry.get("channel").longValue(), entry.get("service").textValue()))
-                    .forEach(detail -> eventServices.put(detail.event, detail));
-        } catch (Throwable t) {
-            Log.at(Level.SEVERE, "Failed to load events; deleting file", t);
-            //noinspection ResultOfMethodCallIgnored
-            EVENTS_FILE.delete();
-        }
+        loadDetailsCache();
+        loadCommonServices();
 
         jda.awaitReady();
         cmdr.initialize();
@@ -71,17 +73,10 @@ public class Program extends Component.Base {
         bus.close();
         cmdr.close();
 
-        //noinspection ResultOfMethodCallIgnored
-        EVENTS_FILE.getParentFile().mkdirs();
-        try (var write = new FileWriter(EVENTS_FILE)) {
-            MAPPER.writeValue(write, eventServices.values());
-        } catch (Throwable t) {
-            Log.at(Level.SEVERE, "Failed to save events; deleting file", t);
-            //noinspection ResultOfMethodCallIgnored
-            EVENTS_FILE.delete();
-        }
+        saveDetailsCache();
+        saveCommonServices();
 
-        Log.at(Level.INFO, "Stopped! Config at " + EVENTS_FILE.getAbsolutePath());
+        Log.at(Level.INFO, "Stopped! Config at " + DETAILS_CACHE.getAbsolutePath());
     }
 
     @Override
@@ -102,6 +97,22 @@ public class Program extends Component.Base {
             new Adapter$JDA(jda);
             register(Program.this);
         }};
+    }
+
+    @Command(permission = "8")
+    public String save() {
+        saveDetailsCache();
+        saveCommonServices();
+        return "Saved!";
+    }
+
+    @Command(value = "reload", permission = "8")
+    public String $reload() {
+        commonServices.clear();
+        eventServices.clear();
+        loadCommonServices();
+        loadDetailsCache();
+        return "Reloaded";
     }
 
     @Command(permission = "8")
@@ -131,7 +142,48 @@ public class Program extends Component.Base {
         if (event == null) throw new Command.Error("Cannot find scheduled event with ID " + eventId);
 
         eventServices.put(eventId, new EventDetail(eventId, channel.getIdLong(), service));
+        saveDetailsCache();
+
         return "Successfully linked scheduled event '%s' with service '%s'".formatted(event.getName(), service);
+    }
+
+    @Command(permission = "8589934592") // perm: MANAGE_EVENTS
+    @Description("Define commonly used services to automate event linkage when an event URL is posted")
+    public String common(
+            @Command.Arg @Description("The channel to look for event URLs") TextChannel channel,
+            @Command.Arg @Description("The service to affiliate with the channel") String service
+    ) {
+        commonServices.put(channel.getIdLong(), service);
+        saveCommonServices();
+        return "Set `%s` as default service for events in %s".formatted(service, channel.getAsMention());
+    }
+
+    @Event.Subscriber
+    public void onMessageReceived(MessageReceivedEvent event) {
+        if (!commonServices.containsKey(event.getChannel().getIdLong())) return;
+        if (extractScheduledEvent(event.getMessage().getContentRaw()) == null) return;
+        event.getMessage().addReaction(EMOJI_QUESTION).queue();
+    }
+
+    @Event.Subscriber
+    public void onMessageReactionAdd(MessageReactionAddEvent event) {
+        if (!event.getEmoji().equals(EMOJI_QUESTION)) return;
+
+        var service = commonServices.getOrDefault(event.getChannel().getIdLong(), null);
+        if (service == null) return;
+
+        var message   = event.retrieveMessage().submit().join();
+        var scheduled = extractScheduledEvent(message.getContentRaw());
+        if (scheduled == null) return;
+
+        eventServices.put(scheduled.getIdLong(), new EventDetail(scheduled.getIdLong(), event.getChannel().getIdLong(), service));
+        saveDetailsCache();
+
+        event.getChannel()
+                .sendMessage(("Event '%s' linked to service " + "`%s`").formatted(scheduled.getName(), service))
+                .flatMap($ -> message.removeReaction(EMOJI_QUESTION))
+                .flatMap($ -> message.addReaction(EMOJI_OK))
+                .queue();
     }
 
     @Event.Subscriber
@@ -163,6 +215,11 @@ public class Program extends Component.Base {
                 .queue();
     }
 
+    private @Nullable ScheduledEvent extractScheduledEvent(String messageContent) {
+        var matcher = EVENT_URL_ARG.matcher(messageContent);
+        return matcher.find() ? jda.getScheduledEventById(Long.parseLong(matcher.group(1))) : null;
+    }
+
     private void startService(String name) {
         bashExec("sudo -n systemctl start " + name);
     }
@@ -179,6 +236,63 @@ public class Program extends Component.Base {
             Runtime.getRuntime().exec(command.split(" ")).waitFor(1, TimeUnit.MINUTES);
         } catch (InterruptedException timeout) {
             Log.at(Level.WARNING, "bashExec() timed out", timeout);
+        }
+    }
+
+    private void loadDetailsCache() {
+        if (DETAILS_CACHE.exists()) try {
+            var data = MAPPER.readTree(DETAILS_CACHE);
+            data.valueStream()
+                    .map(entry -> new EventDetail(entry.get("event").longValue(), entry.get("channel").longValue(), entry.get("service").textValue()))
+                    .forEach(detail -> eventServices.put(detail.event, detail));
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to load events; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            DETAILS_CACHE.delete();
+        }
+    }
+
+    private void saveDetailsCache() {
+        //noinspection ResultOfMethodCallIgnored
+        DETAILS_CACHE.getParentFile().mkdirs();
+        try (var write = new FileWriter(DETAILS_CACHE)) {
+            var obj = MAPPER.createObjectNode();
+            eventServices.forEach((event, detail) -> obj.put("event", event).put("channel", detail.channelId).put("service", detail.service));
+            MAPPER.writeValue(write, obj);
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to save events; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            DETAILS_CACHE.delete();
+        }
+    }
+
+    private void loadCommonServices() {
+        if (COMMON_SERVICES.exists()) try {
+            var data = MAPPER.readTree(COMMON_SERVICES);
+            data.forEachEntry((key, value) -> {
+                var id      = Long.parseLong(key);
+                var channel = jda.getTextChannelById(id);
+                if (channel == null) return;
+                commonServices.put(id, value.textValue());
+            });
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to load events; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            DETAILS_CACHE.delete();
+        }
+    }
+
+    private void saveCommonServices() {
+        //noinspection ResultOfMethodCallIgnored
+        COMMON_SERVICES.getParentFile().mkdirs();
+        try (var write = new FileWriter(COMMON_SERVICES)) {
+            var obj = MAPPER.createObjectNode();
+            commonServices.forEach((channel, service) -> obj.put(String.valueOf(channel), service));
+            MAPPER.writeValue(write, obj);
+        } catch (Throwable t) {
+            Log.at(Level.SEVERE, "Failed to save commons; deleting file", t);
+            //noinspection ResultOfMethodCallIgnored
+            DETAILS_CACHE.delete();
         }
     }
 
