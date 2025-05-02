@@ -130,17 +130,17 @@ public class Program extends Component.Base {
         var detail = eventServices.getOrDefault(event.getScheduledEvent().getIdLong(), null);
         if (detail == null) return;
 
-        String verb = "looked at (something went wrong)";
-        switch (event.getNewStatus()) {
-            case ACTIVE:
+        String verb = switch (event.getNewStatus()) {
+            case ACTIVE -> {
                 startService(detail.service);
-                verb = "started";
-                break;
-            case COMPLETED, CANCELED:
+                yield "started";
+            }
+            case COMPLETED, CANCELED -> {
                 stopService(detail.service);
-                verb = "stopped";
-                break;
-        }
+                yield "stopped";
+            }
+            default -> "looked at (something went wrong)";
+        };
 
         var channel = event.getScheduledEvent().getChannel();
         if (channel == null) {
