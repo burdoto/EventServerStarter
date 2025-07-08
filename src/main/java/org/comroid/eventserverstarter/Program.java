@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.SneakyThrows;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.ScheduledEvent;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.Channel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
@@ -15,6 +17,7 @@ import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.comroid.annotations.Description;
+import org.comroid.api.Polyfill;
 import org.comroid.api.func.util.Command;
 import org.comroid.api.func.util.Event;
 import org.comroid.api.info.Log;
@@ -27,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -54,6 +58,18 @@ public class Program extends Component.Base {
     private       Event.Bus<GenericEvent> bus;
     private       JDA                     jda;
     private       Command.Manager         cmdr;
+
+    @Command
+    @SneakyThrows
+    public String kaleytimeout(User user, Guild guild, @Command.Arg String duration) {
+        if (user.getIdLong() != 141476933849448448L) {
+            Thread.sleep(6000); // to make the interaction fail
+            return null;
+        }
+        var time = Polyfill.parseDuration(duration);
+        Objects.requireNonNull(guild.getMember(user)).timeoutFor(time).queue();
+        return "goodnight"; // ephemeral by default
+    }
 
     @Override
     @SneakyThrows
